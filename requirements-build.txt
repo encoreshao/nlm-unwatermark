@@ -1,0 +1,2 @@
+# For building exe only
+pyinstaller>=6.0.0

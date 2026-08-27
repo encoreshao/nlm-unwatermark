@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nlm-unwatermark"
+version = "1.0.0"
+description = "Removes the NotebookLM watermark from PDF, PPTX, and image files"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Encore Shao" }]
+requires-python = ">=3.9"
+dependencies = [
+    "pymupdf>=1.20.0",
+    "tqdm>=4.65.0",
+    "Pillow>=10.0.0",
+    "opencv-python-headless>=4.8.0",
+    "numpy>=1.24.0",
+]
+
+[project.scripts]
+nlm-unwatermark = "nlm_unwatermark.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["nlm_unwatermark*"]
