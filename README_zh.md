@@ -10,8 +10,15 @@
 
 使用计算机视觉图像修复技术，从 PDF、PPTX 及图片导出文件（PNG/JPG/WEBP）中移除「NotebookLM」水印 —— 不是简单地用纯色方块覆盖，因此渐变、纹理和幻灯片边框都能完整保留。
 
+## 处理前后对比
+
+| 处理前 | 处理后 |
+| --- | --- |
+| ![处理前：带有 NotebookLM 水印的页面](docs/images/before.png) | ![处理后：水印已移除，背景已修复](docs/images/after.png) |
+
 ## 目录
 
+- [处理前后对比](#处理前后对比)
 - [工作原理](#工作原理)
 - [环境要求](#环境要求)
 - [安装](#安装)
@@ -113,12 +120,15 @@ docs/
 
 ## 开发
 
-按照[安装](#安装)一节搭建本地开发环境；如果打算打包可执行文件，还需安装构建专用依赖：
+按照[安装](#安装)一节搭建本地开发环境 —— **务必在该虚拟环境内**操作，不要使用全局/共享的 Python 解释器；如果打算打包可执行文件，还需安装构建专用依赖：
 
 ```bash
+python3 -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt -r requirements-build.txt
 python -m PyInstaller packaging/nlm-unwatermark.spec --noconfirm
 ```
+
+> **为什么必须用独立虚拟环境：** PyInstaller 会静态追踪它能找到的所有 import，包括仅在可选、未使用的代码路径中才会用到的（例如 PyMuPDF 的 `Table.to_pandas()`）。如果在装有其他项目无关重型依赖（pandas、torch 等）的共享/全局解释器中构建，PyInstaller 也会把它们一并打包进来，甚至导致构建失败 —— 比如出现 `numpy.dtype size changed` 这类错误，通常意味着从项目之外带入了不兼容的 `pandas`/`numpy` 组合。只安装 `requirements.txt` + `requirements-build.txt` 的干净虚拟环境可以完全避免这个问题。
 
 完整构建细节 —— 包括为什么配置文件指向 `packaging/entry_point.py` 而非 `nlm_unwatermark/__main__.py` —— 请参见 [docs/BUILD.md](docs/BUILD.md)。
 

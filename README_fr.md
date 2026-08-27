@@ -10,8 +10,15 @@
 
 Supprime le filigrane « NotebookLM » des exports PDF, PPTX et image (PNG/JPG/WEBP) grâce à de l'inpainting par vision par ordinateur plutôt qu'un simple aplat de couleur, afin de préserver dégradés, textures et bordures de diapositives.
 
+## Avant / Après
+
+| Avant | Après |
+| --- | --- |
+| ![Avant : page avec le filigrane NotebookLM](docs/images/before.png) | ![Après : filigrane supprimé, arrière-plan restauré](docs/images/after.png) |
+
 ## Table des matières
 
+- [Avant / Après](#avant--après)
 - [Fonctionnement](#fonctionnement)
 - [Prérequis](#prérequis)
 - [Installation](#installation)
@@ -113,12 +120,15 @@ docs/
 
 ## Développement
 
-Configurez un environnement de développement local comme indiqué dans [Installation](#installation), puis installez les dépendances de build si vous prévoyez d'empaqueter un exécutable :
+Configurez un environnement de développement local comme indiqué dans [Installation](#installation) — **à l'intérieur de cet environnement virtuel**, jamais depuis un interpréteur Python global/partagé — puis installez les dépendances de build si vous prévoyez d'empaqueter un exécutable :
 
 ```bash
+python3 -m venv venv && source venv/bin/activate   # Windows : venv\Scripts\activate
 pip install -r requirements.txt -r requirements-build.txt
 python -m PyInstaller packaging/nlm-unwatermark.spec --noconfirm
 ```
+
+> **Pourquoi un venv isolé est indispensable :** PyInstaller trace statiquement tous les imports qu'il peut trouver, y compris ceux atteints uniquement par des chemins de code optionnels et inutilisés (ex. `Table.to_pandas()` de PyMuPDF). Si vous construisez depuis un interpréteur partagé/global contenant des paquets lourds sans rapport (pandas, torch, etc.), PyInstaller peut les embarquer aussi, et le build peut échouer — une erreur du type `numpy.dtype size changed` signale généralement une paire `pandas`/`numpy` incompatible importée depuis l'extérieur de ce projet. Un venv propre ne contenant que `requirements.txt` + `requirements-build.txt` évite entièrement ce problème.
 
 Les détails complets du build — y compris la raison pour laquelle la spec cible `packaging/entry_point.py` plutôt que `nlm_unwatermark/__main__.py` — se trouvent dans [docs/BUILD.md](docs/BUILD.md).
 

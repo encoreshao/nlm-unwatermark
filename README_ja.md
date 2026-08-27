@@ -10,8 +10,15 @@
 
 PDF・PPTX・画像（PNG/JPG/WEBP）の書き出しから「NotebookLM」の透かしを除去します。単色の塗りつぶしではなくコンピュータビジョンによるインペインティングを使うため、グラデーション、テクスチャ、スライドの枠線がそのまま保たれます。
 
+## Before / After
+
+| Before | After |
+| --- | --- |
+| ![Before: NotebookLM の透かしが入ったページ](docs/images/before.png) | ![After: 透かしを除去し背景を修復した状態](docs/images/after.png) |
+
 ## 目次
 
+- [Before / After](#before--after)
 - [仕組み](#仕組み)
 - [必要環境](#必要環境)
 - [インストール](#インストール)
@@ -113,12 +120,15 @@ docs/
 
 ## 開発
 
-[インストール](#インストール)と同様の手順でローカル開発環境を構築し、実行ファイルをパッケージングする予定がある場合はビルド専用の依存関係もインストールしてください。
+[インストール](#インストール)と同様の手順でローカル開発環境を構築してください —— **必ずその仮想環境の中で**作業し、グローバル/共有の Python インタプリタは使わないでください。実行ファイルをパッケージングする予定がある場合はビルド専用の依存関係もインストールします。
 
 ```bash
+python3 -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt -r requirements-build.txt
 python -m PyInstaller packaging/nlm-unwatermark.spec --noconfirm
 ```
+
+> **独立した venv が必要な理由:** PyInstaller は、オプションかつ未使用のコードパスからしか到達しない import（例: PyMuPDF の `Table.to_pandas()`）も含め、見つかったすべての import を静的に追跡します。pandas や torch など本プロジェクトと無関係な重量級パッケージがインストールされた共有/グローバルなインタプリタでビルドすると、それらも取り込まれてしまい、ビルドが失敗することがあります —— `numpy.dtype size changed` のようなエラーは、プロジェクト外から互換性のない `pandas`/`numpy` の組み合わせが紛れ込んだサインです。`requirements.txt` と `requirements-build.txt` だけをインストールしたクリーンな venv を使えば、この問題は完全に回避できます。
 
 `nlm_unwatermark/__main__.py` ではなく `packaging/entry_point.py` をビルド仕様のターゲットにしている理由など、ビルドの詳細は [docs/BUILD.md](docs/BUILD.md) を参照してください。
 

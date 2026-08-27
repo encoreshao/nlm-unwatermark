@@ -10,8 +10,15 @@
 
 Removes the "NotebookLM" watermark from PDF, PPTX, and image exports (PNG/JPG/WEBP) using computer-vision inpainting instead of a solid-color box, so gradients, textures, and slide borders stay intact.
 
+## Before / After
+
+| Before | After |
+| --- | --- |
+| ![Before: page with the NotebookLM watermark](docs/images/before.png) | ![After: watermark removed, background healed](docs/images/after.png) |
+
 ## Table of Contents
 
+- [Before / After](#before--after)
 - [How It Works](#how-it-works)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -113,12 +120,15 @@ docs/
 
 ## Development
 
-Set up a local development environment the same way as [Installation](#installation), then install the build-only dependencies if you plan to package an executable:
+Set up a local development environment the same way as [Installation](#installation) — **inside that virtual environment**, not a global/shared Python install — then install the build-only dependencies if you plan to package an executable:
 
 ```bash
+python3 -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt -r requirements-build.txt
 python -m PyInstaller packaging/nlm-unwatermark.spec --noconfirm
 ```
+
+> **Why an isolated venv matters:** PyInstaller statically traces every import it can find, including ones only reached lazily by optional, unused code paths (e.g. PyMuPDF's `Table.to_pandas()`). If you build from a shared/global interpreter that happens to have unrelated heavy packages installed (pandas, torch, etc.), PyInstaller can pull those in too and the build can fail — e.g. a `numpy.dtype size changed` error means an incompatible `pandas`/`numpy` pair got dragged in from outside this project. A clean venv containing only `requirements.txt` + `requirements-build.txt` avoids this entirely.
 
 Full build details — including why the spec targets `packaging/entry_point.py` instead of `nlm_unwatermark/__main__.py` — are in [docs/BUILD.md](docs/BUILD.md).
 

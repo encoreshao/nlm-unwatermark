@@ -24,7 +24,18 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # PyMuPDF (Table.to_pandas) and tqdm (tqdm.pandas/tqdm.notebook) contain
+    # lazy, optional imports of these packages that nlm-unwatermark never
+    # calls. If they happen to be installed in the build environment,
+    # PyInstaller's static analysis will otherwise pull in their entire
+    # (often huge and possibly ABI-incompatible) dependency trees.
+    excludes=[
+        'pandas',
+        'IPython',
+        'ipywidgets',
+        'matplotlib',
+        'pytest',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
