@@ -14,7 +14,7 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
-        'fitz',
+        'pymupdf',
         'cv2',
         'numpy',
         'PIL',

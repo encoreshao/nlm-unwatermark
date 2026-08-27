@@ -6,7 +6,7 @@ import os
 from typing import Optional
 
 import cv2
-import fitz  # PyMuPDF
+import pymupdf as fitz
 from PIL import Image
 from tqdm import tqdm
 
