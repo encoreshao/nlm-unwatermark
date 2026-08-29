@@ -28,9 +28,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--margin-y", type=int, default=None, help="Search margin height from bottom edge")
     parser.add_argument("--threshold", type=int, default=None, help="Dark contrast threshold")
     parser.add_argument("--text-threshold", type=float, default=None, help="Template match threshold, e.g. 0.48")
+    parser.add_argument("--icon-threshold", type=float, default=None, help="Gemini spark icon match threshold, e.g. 0.35")
     parser.add_argument("--scale", type=float, default=None, help="Render/upscale factor")
     parser.add_argument("--radius", type=int, default=None, help="Inpaint radius")
     parser.add_argument("--no-patch-heal", action="store_true", help="Disable clean-patch healing, use plain inpainting instead")
+    parser.add_argument("--context-scale", type=float, default=None, help="How much wider than the search margin to look for a clean donor patch, e.g. 3.0")
+    parser.add_argument("--patch-quality-threshold", type=float, default=None, help="Max acceptable donor-patch mismatch before falling back to inpainting, e.g. 20.0")
     parser.add_argument("--debug", action="store_true", help="Save debug masks/images")
     return parser
 
@@ -45,12 +48,18 @@ def _config_from_args(args: argparse.Namespace) -> WatermarkConfig:
         config.pixel_threshold = args.threshold
     if args.text_threshold is not None:
         config.text_match_threshold = args.text_threshold
+    if args.icon_threshold is not None:
+        config.icon_match_threshold = args.icon_threshold
     if args.scale is not None:
         config.pdf_dpi_scale = args.scale
     if args.radius is not None:
         config.inpaint_radius = args.radius
     if args.no_patch_heal:
         config.use_patch_heal = False
+    if args.context_scale is not None:
+        config.context_margin_scale = args.context_scale
+    if args.patch_quality_threshold is not None:
+        config.patch_quality_threshold = args.patch_quality_threshold
     if args.debug:
         config.debug = True
     return config

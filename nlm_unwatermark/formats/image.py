@@ -31,9 +31,15 @@ def process_image(remover: WatermarkRemover, input_path: str, output_path: str) 
         mx, my = remover.config.search_margin_x, remover.config.search_margin_y
         y0 = max(0, h - my)
         x0 = max(0, w - mx)
-
         roi = img_bgr[y0:h, x0:w].copy()
-        cleaned_roi = remover.clean_roi_scaled(roi)
+
+        ctx_scale = remover.config.context_margin_scale
+        cy0 = max(0, h - int(my * ctx_scale))
+        cx0 = max(0, w - int(mx * ctx_scale))
+        context = img_bgr[cy0:h, cx0:w].copy()
+        context_offset = (x0 - cx0, y0 - cy0)
+
+        cleaned_roi = remover.clean_roi_scaled(roi, context, context_offset)
         if cleaned_roi is None:
             logger.warning(f"No watermark detected in {input_path}")
             return False

@@ -37,9 +37,14 @@ def _clean_pptx_image_bytes(remover: WatermarkRemover, img_bytes: bytes, origina
 
     mx, my = remover.config.search_margin_x, remover.config.search_margin_y
     y0, x0 = max(0, h - my), max(0, w - mx)
-
     roi = img_bgr[y0:h, x0:w].copy()
-    cleaned_roi = remover.clean_roi_scaled(roi)
+
+    ctx_scale = remover.config.context_margin_scale
+    cy0, cx0 = max(0, h - int(my * ctx_scale)), max(0, w - int(mx * ctx_scale))
+    context = img_bgr[cy0:h, cx0:w].copy()
+    context_offset = (x0 - cx0, y0 - cy0)
+
+    cleaned_roi = remover.clean_roi_scaled(roi, context, context_offset)
     if cleaned_roi is None:
         return None
 

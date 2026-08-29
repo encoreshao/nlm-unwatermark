@@ -168,6 +168,97 @@ class WatermarkDetector:
             return None, best_score
         return best_box, best_score
 
+    # ---------- icon-only template matching ---------- #
+
+    def _render_icon_template(self, size: int) -> np.ndarray:
+        """Creates a binary template for the Gemini "spark" badge -- the
+        four-pointed sparkle icon Gemini stamps on AI-generated/edited images.
+        Unlike the NotebookLM watermark, this badge carries no text, so it
+        needs its own shape template rather than reusing the text one.
+
+        The star's radius follows r(theta) = a + b*cos(4*theta), which places
+        maxima (tips) on the axes and minima (concave waist) at the diagonals
+        with a smooth curve between them -- matching the badge's rounded,
+        pinched silhouette (measured inner/outer radius ratio ~0.4 from real
+        samples) without needing a bundled icon asset.
+        """
+        size = max(12, int(size))
+        key = ('icon', size)
+        if key in self._template_cache:
+            return self._template_cache[key]
+
+        canvas = size + 4
+        img = np.zeros((canvas, canvas), dtype=np.uint8)
+        cx = cy = canvas / 2.0
+        r_outer = size / 2.0
+        r_inner = r_outer * 0.42
+        a = (r_outer + r_inner) / 2.0
+        b = (r_outer - r_inner) / 2.0
+
+        thetas = np.linspace(0, 2 * np.pi, 200, endpoint=False)
+        r = a + b * np.cos(4 * thetas)
+        pts = np.stack([cx + r * np.cos(thetas), cy + r * np.sin(thetas)], axis=1)
+        cv2.fillPoly(img, [pts.astype(np.int32)], 255)
+
+        ys, xs = np.where(img > 0)
+        if len(xs) == 0 or len(ys) == 0:
+            tpl = np.zeros((10, 10), dtype=np.uint8)
+        else:
+            tpl = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+        self._template_cache[key] = tpl
+        return tpl
+
+    def _template_match_icon(self, roi_bgr: np.ndarray) -> Tuple[Optional[Tuple[int, int, int, int]], float]:
+        """Template-match the Gemini spark badge in the bottom-right ROI.
+
+        This runs independently of `_template_match_text`: the badge appears
+        alone on Gemini-generated images (no "NotebookLM"/"Gemini Notebook"
+        label next to it), so it needs its own scan rather than the icon-pad
+        reserved next to matched text.
+
+        Unlike text, whose color follows the page theme, the badge is always
+        rendered as a light/white sparkle regardless of the underlying photo
+        -- so this always matches for a light shape against its local
+        background rather than switching polarity like the text matcher.
+        """
+        h, w = roi_bgr.shape[:2]
+        if h < 20 or w < 20:
+            return None, 0.0
+
+        gray = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2GRAY)
+        gray_eq = cv2.equalizeHist(gray)
+
+        search_x0 = int(w * self.config.roi_right_bias)
+        search_y0 = int(h * self.config.roi_bottom_bias)
+        search_area = gray_eq[search_y0:h, search_x0:w]
+
+        best_score = 0.0
+        best_box = None
+
+        scale = self.config.pdf_dpi_scale
+        min_size = max(14, int(round(16 * scale)))
+        max_size = max(min_size + 12, int(round(70 * scale)))
+        step = max(4, int(round(6 * scale)))
+
+        for size in range(min_size, max_size, step):
+            tpl = self._render_icon_template(size)
+            th, tw = tpl.shape[:2]
+            if th >= search_area.shape[0] or tw >= search_area.shape[1]:
+                continue
+
+            result = cv2.matchTemplate(search_area, tpl, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+            if max_val > best_score:
+                x, y = max_loc
+                best_score = float(max_val)
+                best_box = (x + search_x0, y + search_y0, tw, th)
+
+        if best_score < self.config.icon_match_threshold:
+            return None, best_score
+        return best_box, best_score
+
     # ---------- candidate extraction ---------- #
 
     def _extract_candidates(self, roi_bgr: np.ndarray) -> np.ndarray:
@@ -237,7 +328,40 @@ class WatermarkDetector:
 
         text_box, score = self._template_match_text(roi_bgr)
         if text_box is None:
-            # Fallback: no confident text match, so approximate the watermark as
+            # No watermark text -- check for a standalone Gemini spark badge
+            # (stamped on AI-generated/edited images with no accompanying
+            # label) before falling back to the generic blob heuristic.
+            icon_box, icon_score = self._template_match_icon(roi_bgr)
+            if icon_box is not None:
+                ix, iy, iw, ih = icon_box
+
+                # Follow the badge's actual star silhouette rather than its
+                # full bounding box: a solid rectangle covers far more of
+                # whatever real content surrounds the badge (often a photo's
+                # own silhouette edge) than removal needs, which is exactly
+                # what makes the patched region visible afterward.
+                icon_tpl = self._render_icon_template(max(iw, ih))
+                icon_shape = cv2.resize(icon_tpl, (iw, ih), interpolation=cv2.INTER_LINEAR)
+                _, icon_shape = cv2.threshold(icon_shape, 127, 255, cv2.THRESH_BINARY)
+
+                icon_mask = np.zeros((h, w), dtype=np.uint8)
+                icon_mask[iy:iy + ih, ix:ix + iw] = icon_shape
+
+                # Dilate to cover the real badge's soft glow/anti-aliasing,
+                # which extends well beyond the crisp synthetic silhouette --
+                # scaled to the icon's own size so this still holds at
+                # different resolutions/upscale factors.
+                grow = max(3, int(round(min(iw, ih) * 0.28)) | 1)
+                grow_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow))
+                icon_mask = cv2.dilate(icon_mask, grow_kernel, iterations=1)
+
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+                if cv2.countNonZero(icon_mask) >= self.config.min_watermark_area:
+                    icon_mask = cv2.morphologyEx(icon_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+                    self.debug_save("icon_mask.png", icon_mask)
+                    return icon_mask
+
+            # Fallback: no confident text or icon match, so approximate the watermark as
             # the union of small, roughly text/icon-shaped dark components in the
             # bottom-right area. This is intentionally conservative: a decorative
             # element sharing that corner (a ruled grid, a border) is made of

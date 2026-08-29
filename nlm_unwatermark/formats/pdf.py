@@ -103,7 +103,26 @@ def _patch_pdf_rect(remover: WatermarkRemover, page: "fitz.Page", rect: "fitz.Re
     if roi_bgr is None:
         return False
 
-    result = remover.clean_watermark_in_roi(roi_bgr)
+    # Render a wider surrounding clip too, so reconstruction can find a
+    # clean donor patch even when the tight `rect` has nowhere clean nearby
+    # (e.g. a watermark sitting right on a real content edge in a scanned page).
+    page_w, page_h = page.rect.width, page.rect.height
+    ctx_scale = remover.config.context_margin_scale
+    extra_w = rect.width * (ctx_scale - 1) / 2
+    extra_h = rect.height * (ctx_scale - 1) / 2
+    context_rect = fitz.Rect(
+        max(0, rect.x0 - extra_w), max(0, rect.y0 - extra_h),
+        min(page_w, rect.x1 + extra_w), min(page_h, rect.y1 + extra_h),
+    )
+    context_pix = page.get_pixmap(clip=context_rect, matrix=mat, alpha=False)
+    context_bgr = remover.pixmap_to_bgr(context_pix)
+    scale = remover.config.pdf_dpi_scale
+    context_offset = (
+        int(round((rect.x0 - context_rect.x0) * scale)),
+        int(round((rect.y0 - context_rect.y0) * scale)),
+    )
+
+    result = remover.clean_watermark_in_roi(roi_bgr, context_bgr, context_offset)
     if result is None:
         return False
     cleaned, mask = result

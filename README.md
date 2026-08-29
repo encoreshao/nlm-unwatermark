@@ -8,7 +8,7 @@
 
 [English](README.md) | [中文](README_zh.md) | [Français](README_fr.md) | [日本語](README_ja.md)
 
-Removes the "NotebookLM" watermark from PDF, PPTX, and image exports (PNG/JPG/WEBP) using computer-vision inpainting instead of a solid-color box, so gradients, textures, and slide borders stay intact.
+Removes the "NotebookLM" watermark and the Gemini "spark" badge from PDF, PPTX, and image exports (PNG/JPG/WEBP) using computer-vision inpainting instead of a solid-color box, so gradients, textures, and slide borders stay intact.
 
 ## Before / After
 
@@ -33,8 +33,8 @@ Removes the "NotebookLM" watermark from PDF, PPTX, and image exports (PNG/JPG/WE
 
 ## How It Works
 
-1. **Detect** — contrast analysis + text template matching locate the watermark, ignoring nearby slide content.
-2. **Reconstruct** — the background behind it is healed from a nearby clean patch of the same page (falls back to inpainting when no clean patch is found).
+1. **Detect** — contrast analysis + text template matching locate the "NotebookLM" watermark; a standalone shape template catches the Gemini "spark" badge on AI-generated images that carry no text, ignoring nearby slide content.
+2. **Reconstruct** — the background behind it is healed from a clean nearby patch, searched for over a wider surrounding area than the detection crop itself (so a badge sitting right on a real content edge can still find a good match), falling back to inpainting when nothing close enough is found.
 3. **Patch** — PDFs get the watermark text stripped straight from the text layer (redaction, not overlay) plus a small raster touch-up for the icon; PPTX/images are patched in the rendered pixels.
 
 ## Requirements
@@ -84,9 +84,12 @@ Didn't run `pip install -e .`? Use `python -m nlm_unwatermark file.pdf` instead 
 | `--margin-y` | `120` | Search height from the bottom edge, in px |
 | `--threshold` | `22` | Contrast threshold for candidate pixels |
 | `--text-threshold` | `0.33` | Template-match confidence required to count as text |
+| `--icon-threshold` | `0.65` | Template-match confidence required to count as the Gemini spark icon |
 | `--scale` | `3.5` | PDF render / image upscale factor |
 | `--radius` | `3` | Inpaint radius (fallback reconstruction only) |
 | `--no-patch-heal` | off | Use plain inpainting instead of clean-patch healing |
+| `--context-scale` | `3.0` | How much wider than the search margin to look for a clean donor patch |
+| `--patch-quality-threshold` | `20.0` | Max acceptable donor-patch mismatch before falling back to inpainting |
 | `--debug` | off | Dump detection masks to `debug_watermark/` |
 
 ## Standalone Executable
